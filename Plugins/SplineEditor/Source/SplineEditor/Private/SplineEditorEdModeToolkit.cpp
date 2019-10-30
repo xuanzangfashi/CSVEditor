@@ -20,7 +20,8 @@
 #include "Misc/MessageDialog.h"
 #include "Factories/CurveFactory.h"
 #include "EditorModeManager.h"
-
+#include "AssetToolsModule.h"
+#include "Runtime/Engine/Classes/Curves/CurveVector.h"
 
 
 #define LOCTEXT_NAMESPACE "FSplineEditorEdModeToolkit"
@@ -249,12 +250,19 @@ FReply FSplineEditorEdModeToolkit::ImportJsonFiles()
 	//TSharedPtr<UCurveFloatFactory> curve_factory = MakeShareable(NewObject<UCurveFloatFactory>());
 	//FString package_name = TEXT("/Game/JsonFiles/");
 	//TSharedPtr<UPackage> package = MakeShareable(CreatePackage(NULL, *package_name));
-	
+	TArray<FAssetData>allSelectAsset;
+	GEditor->GetContentBrowserSelections(allSelectAsset);
+	UCurveVectorFactory* cureve_factory = NewObject<UCurveVectorFactory>();
+	FAssetToolsModule& assetToolsModule = FAssetToolsModule::GetModule();
+	UObject* newAsset = assetToolsModule.Get().CreateAsset(cureve_factory->GetSupportedClass(), cureve_factory);
+	TArray<UObject*>ObjectsToSync;
+	ObjectsToSync.Add(newAsset);
+	GEditor->SyncBrowserToObjects(ObjectsToSync);
+	UCurveVector* curve_asset = (UCurveVector*)newAsset;
 	for (int i = 0; i < outNames.Num(); i++)
 	{
 		FString file_name = FPaths::GetCleanFilename(outNames[i]);
-		TArray<FAssetData>allSelectAsset;
-		GEditor->GetContentBrowserSelections(allSelectAsset);//(UJsonPoints*)jsonPoints_factory->FactoryCreateNew(UJsonPoints::StaticClass(), package.Get(), *file_name, RF_Standalone | RF_Public, NULL, GWarn);
+		//(UJsonPoints*)jsonPoints_factory->FactoryCreateNew(UJsonPoints::StaticClass(), package.Get(), *file_name, RF_Standalone | RF_Public, NULL, GWarn);
 		UJsonPoints* JsonPoints = Cast<UJsonPoints>(allSelectAsset[i].GetAsset());
 
 
@@ -281,7 +289,9 @@ FReply FSplineEditorEdModeToolkit::ImportJsonFiles()
 					float x = obj->GetNumberField("x");
 					float y = obj->GetNumberField("y");
 					float orientation = obj->GetNumberField("orientation");
-
+					curve_asset->FloatCurves[0].AddKey(t, x);
+					curve_asset->FloatCurves[1].AddKey(t, y);
+					curve_asset->FloatCurves[2].AddKey(t, orientation);
 					FJsonPoint point;
 					point.t = t;
 					point.x = x;
@@ -300,6 +310,7 @@ FReply FSplineEditorEdModeToolkit::ImportJsonFiles()
 			//package->SetDirtyFlag(true);;
 			
 			JsonPoints->Rename(*FPaths::GetBaseFilename(outNames[i]));
+			curve_asset->Rename(*(FPaths::GetBaseFilename(outNames[i]) + "_Curve"));
 			JsonPoints->MarkPackageDirty();
 			JsonPoints->PostEditChange();
 			JsonPoints->AddToRoot();
